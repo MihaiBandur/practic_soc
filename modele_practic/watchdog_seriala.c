@@ -168,30 +168,33 @@ int main(void)
      * Daca exista valori salvate în variabile dupa resetare, calculam  
      * perioada efectiva a WDT 
      *-----------------------------------------------------*/ 
-    if (Timer1_numberOverflows > 0 || Timer1_currentValue > 0)  
-    {  
-        // Calcularea numarului total de ticks 
-        uint32_t number = (Timer1_numberOverflows * (uint64_t)65535) +            
-        Timer1_currentValue;  
- 
-        // Conversia în milisecunde (fiecare tick dureaza 62.5 ns) 
-        uint8_t period = number * 0.0000625;   
-        
-        // Calcularea duratei unui ciclu de clock al WDT (în nanosecunde) 
-        uint16_t time_per_clock = (period * 1000000) / 4096;   
- 
-        // Calcularea frecven?ei WDT în kHz 
-        uint8_t frecv = (1000000. / time_per_clock);   
-        
-        build_wdt_freq_message(frecv, numere_caracter);
-        
-        index = 0;
-        UCSR2B |= set_udre_intrerupt;   // pornire transmisie
- 
-        // Copierea frecven?ei într-o variabila pentru transmitere 
-
-        
-    }  
+    if (Timer1_numberOverflows > 0 || Timer1_currentValue > 0)
+        {
+            // 1. Calcularea numarului total de ticks (folosind uint32_t sau unsigned long)
+            // Nota: 65536 este corect pentru overflow (2^16), nu 65535
+            uint32_t number = ((uint32_t)Timer1_numberOverflows * 65536UL) + Timer1_currentValue;
+     
+            /* ---------------------------------------------------------
+             * INLOCUIRE CALCUL FLOAT CU INTEGER (Stilul Exemplului 2)
+             * --------------------------------------------------------- */
+            
+            // Calculam perioada in microsecunde (us)
+            // Formula: T_us = Ticks / (F_CPU_in_MHz)
+            // FREC / 1000000UL va rezulta 16 (pentru 16MHz)
+            uint32_t perioada_us = number / (FREC / 1000000UL);
+            
+            // Calculam frecventa WDT direct in kHz
+            // Stim ca pentru setarea WDP1 | WDP0, WDT numara 4096 cicli
+            // Formula: F_kHz = (Numar_Cicli * 1000) / Perioada_us
+            // Folosim 4096000UL pentru a mentine precizia calculelor intregi
+            uint16_t frecv = (uint16_t)(4096000UL / perioada_us);
+            
+            // Construirea mesajului
+            build_wdt_freq_message(frecv, numere_caracter);
+            
+            index = 0;
+            UCSR2B |= set_udre_intrerupt;   // pornire transmisie
+        }
  
     /*----------------------------------------------------- 
      * Resetarea valorilor pentru urmatoarea masuratoare 
