@@ -1,15 +1,15 @@
-#include<ioavr.h>
-#include<inavr.h>
-#include<intrinsics.h>
-#include<stdint.h>
+#include <ioavr.h>
+#include <inavr.h>
+#include <intrinsics.h>
+#include <stdint.h>
+#include <string.h>
 
-#include<string.h>
-#define FREC 16000000
+#define FREC 16000000UL
 #define BAUD 9600
 #define BAUD_RATE (FREC / 16 / BAUD - 1)
 
 #define FLASH_START  0x0000
-#define FLASH_END    0x1FFFF   
+#define FLASH_END    0xFFFF
 
 #define set_rx_intrerupt ( 1 << RXCIE2 )
 #define set_udre_intrerupt ( 1 << UDRIE2 )

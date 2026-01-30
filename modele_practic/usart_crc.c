@@ -5,19 +5,39 @@
 
 
 
+#define FREC 16000000
+#define BAUD 9600
+#define BAUD_RATE (FREC / 16 / BAUD - 1)
+
+#define set_rx_intrerupt ( 1 << RXCIE2 )
+#define set_udre_intrerupt ( 1 << UDRIE2 )
+
+
+#define RECEIVER (1 << RXEN2 )
+#define TRANSMITTER (1 << TXEN2 )
+
+#define RX_IN (1 << PH0)
+#define TX_OUT (1 << PH1)
+
 
 enum BitOrder {LSBF, MSBF};
 
 
 // Polinomul standard pentru CRC-16 în reprezentare MSBF 
-#define CRC16_MSBF 0x1021 
-
-
+#define CRC16_MSBF 0x1021
 
 // Polinomul standard pentru CRC-16 în reprezentare LSBF 
 #define CRC16_LSBF 0x8408 
 
-// Look-up table cu valori precalculate pentru calculul CRC-16 cu MSB-first 
+
+volatile unsigned char data[128] = {'\0'};
+volatile int index = 0;
+uint16_t crc_16_for_my_string = 0;
+char crc_str[5];   // 4 caractere + '\0'
+volatile unsigned char flag_message_received;
+
+
+// Look-up table cu valori precalculate pentru calculul CRC-16 cu MSB-first
 
 __flash const uint16_t crc16tab_MSBF[256] = {  
   0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,  
@@ -176,25 +196,7 @@ void crc16_to_string(uint16_t crc, char *str)
 
 
 
-#define FREC 16000000
-#define BAUD 9600
-#define BAUD_RATE (FREC / 16 / BAUD - 1)
 
-#define set_rx_intrerupt ( 1 << RXCIE2 )
-#define set_udre_intrerupt ( 1 << UDRIE2 )
-
-
-#define RECEIVER (1 << RXEN2 )
-#define TRANSMITTER (1 << TXEN2 )
-
-#define RX_IN (1 << PH0)
-#define TX_OUT (1 << PH1)
-
-volatile unsigned char data[128] = {'\0'};
-volatile int index = 0;
-uint16_t crc_16_for_my_string = 0;
-char crc_str[5];   // 4 caractere + '\0'
-volatile unsigned char flag_message_received;
 void initialise_usart3(uint16_t baud_rate){
   UBRR2H = (uint8_t)(baud_rate >> 8);
   UBRR2L = (uint8_t)(baud_rate & 0xFF);

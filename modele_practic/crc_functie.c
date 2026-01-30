@@ -34,6 +34,10 @@ enum BitOrder {LSBF, MSBF};
 #define TX_OUT (1 << PH1)
 
 
+volatile unsigned char data[64] = {'\0'};
+volatile int index =0;
+volatile unsigned char flag_message_received;
+
 /*  
  * Enum care define?te ordinea de procesare a bi?ilor. 
  * LSBF: bitul cel mai pu?in semnificativ este procesat primul. 
@@ -189,9 +193,7 @@ uint16_t crc16(uint16_t polinom16, uint16_t init_val_16, uint32_t adr_start, uin
 }
 
 
-volatile unsigned char data[64] = {'\0'};
-volatile int index =0;
-volatile unsigned char flag_message_received;
+
 void initialise_usart3(uint16_t baud_rate){
   UBRR2H = (uint8_t)(baud_rate >> 8);
   UBRR2L = (uint8_t)(baud_rate & 0xFF);
