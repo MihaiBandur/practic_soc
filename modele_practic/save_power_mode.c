@@ -1,6 +1,6 @@
-#include<ioavr.h>
-#include<intrinsics.h>
-#include<stdint.h>
+#include <ioavr.h>
+#include <intrinsics.h>
+#include <stdint.h>
 
 #define BAUD_RATE 9600
 #define FREC 16000000UL
@@ -119,7 +119,6 @@ __interrupt void USART0_UDRE_vect(void){
             UCSR0B &= ~(1 << UDRIE0); // Oprim intreruperea UART
             
             // Curatam flag-urile de intrerupere externa si reactivam INT0
-            EIFR |= (1 << INTF0);
             EIMSK |= (1 << INT0);
         }
 }
@@ -167,7 +166,7 @@ void main(void){
             Timer1_Start();
             WDT_Start_Measure();
             
-            while (measurement_done);
+            while (!measurement_done);
             
             uint32_t measured_ticks = end_ticks - start_ticks;
                         
