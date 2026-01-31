@@ -1,7 +1,7 @@
 #define F_CPU 16000000UL
-#include <avr/io.h>
-#include <avr/interrupt.h>
-#include <avr/wdt.h>
+#include <ioavr.h>
+#include <intrinsics.h>
+
 
 // Definim pinul de ieșire (Ex: PB0)
 #define SIGNAL_PORT PORTB
@@ -17,10 +17,10 @@ volatile uint8_t wdt_counter = 0;
  */
 void WDT_Init_Interrupt_Mode(void) {
     // 1. Dezactivăm întreruperile global pentru siguranță
-    cli();
+    __disable_interrupt();
     
     // 2. Resetăm WDT (bună practică înainte de reconfigurare)
-    wdt_reset();
+    __watchdog_reset();
 
     // 3. Pornim secvența de modificare (Timed Sequence)
     // Trebuie scris 1 la WDCE și WDE
@@ -33,14 +33,15 @@ void WDT_Init_Interrupt_Mode(void) {
     WDTCSR = (1 << WDIE) | (0 << WDE) | (0 << WDP3) | (0 << WDP2) | (0 << WDP1) | (0 << WDP0);
 
     // 5. Reactivăm întreruperile
-    sei();
+    __enable_interrrupt();
 }
 
 /*
  * Rutina de tratare a întreruperii Watchdog
  * Se apelează automat la fiecare ~16ms
  */
-ISR(WDT_vect) {
+#pragma vector = WDT_vect
+__interrupt void WDT_ISR(WDT_vect) {
     wdt_counter++;
 
     // Verificăm starea pinului pentru a ști ce numărăm (HIGH sau LOW)

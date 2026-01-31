@@ -1,90 +1,79 @@
-#define F_CPU 16000000UL
 #include <ioavr.h>
 #include <intrinsics.h>
 #include <stdio.h>
+#include <stdint.h>
 
-/***** ZONA DE MEMORIE PERSISTENTĂ *****/
-/* Cuvântul cheie __no_init spune compilatorului IAR:
-   "Nu pune această variabilă pe 0 la restart!"
-   Ea își păstrează valoarea cât timp placa are curent, chiar dacă dăm Reset.
-*/
-__no_init volatile unsigned long timer_sutimi;
+#define F_CPU 16000000UL
+#define BAUD 9600
+#define MYUBRR (F_CPU/16/BAUD-1)
 
-/***** Configurare UART *****/
-void UART_Init(void) {
-    // 9600 baud la 16MHz (UBRR = 103)
-    UBRR0H = 0;
-    UBRR0L = 103;
-    UCSR0B = (1 << TXEN0); // Doar Transmisie
+// --- Variabila care supraviețuiește Reset-ului ---
+__no_init volatile uint32_t timer_sutimi;
+
+// --- Buffer mic (doar pentru număr și \r\n) ---
+volatile char tx_buffer[16];
+volatile uint8_t tx_index = 0;
+
+/* --- Inițializări --- */
+void UART_Init(unsigned int ubrr) {
+    UBRR0H = (unsigned char)(ubrr >> 8);
+    UBRR0L = (unsigned char)ubrr;
+    UCSR0B = (1 << TXEN0); // Doar TX activ
     UCSR0C = (1 << USBS0) | (3 << UCSZ00); // 8N1
 }
 
-void UART_Print(char* str) {
-    while (*str) {
-        while (!(UCSR0A & (1 << UDRE0)));
-        UDR0 = *str++;
-    }
-}
-
-/***** Configurare Timer 1 (10ms) *****/
 void Timer1_Init(void) {
-    // Mod CTC (Clear Timer on Compare), Prescaler 8
-    TCCR1B = (1 << WGM12) | (1 << CS11);
-    
-    // TOP pentru 10ms (100Hz)
-    // 16.000.000 / (8 * 100) - 1 = 19999
-    OCR1A = 19999;
-    
-    // Activare întrerupere
-    TIMSK1 = (1 << OCIE1A);
+    TCCR1B = (1 << WGM12);      // CTC Mode
+    OCR1A = 19999;              // 10ms la Prescaler 8
+    TCCR1B |= (1 << CS11);      // Start cu Prescaler 8
+    TIMSK1 |= (1 << OCIE1A);    // Activare Intrerupere
 }
 
-/***** Întreruperea de timp (100Hz) *****/
+/* --- Întreruperi --- */
+
+// 1. Cronometrul (Rulează mereu)
 #pragma vector = TIMER1_COMPA_vect
 __interrupt void Timer1_ISR(void) {
-    timer_sutimi++; // Numărăm timpul în background
+    timer_sutimi++;
 }
 
-/***** MAIN *****/
+// 2. Transmițătorul (Doar când avem date)
+#pragma vector = USART0_UDRE_vect
+__interrupt void UART_UDRE_ISR(void) {
+    if (tx_buffer[tx_index] != '\0') {
+        UDR0 = tx_buffer[tx_index++];
+    } else {
+        UCSR0B &= ~(1 << UDRIE0); // Stop transmisie
+    }
+}
+
+/* --- MAIN --- */
 void main(void) {
-    char buffer[40];
-    
-    // 1. Verificăm cauza Reset-ului (IMPORTANT!)
-    unsigned char motiv_reset = MCUSR;
-    MCUSR = 0; // Curățăm registrul pentru data viitoare
+    // 1. Salvăm motivul resetului
+    unsigned char mcusr = MCUSR;
+    MCUSR = 0;
 
-    UART_Init();
+    UART_Init(MYUBRR);
 
-    // 2. Logica de afișare bazată pe tipul de reset
-    if (motiv_reset & (1 << PORF)) {
-        // PORF = Power On Reset Flag (Am băgat placa în priză)
-        UART_Print("\r\n[INFO] Pornire rece (Power On). Contor resetat.\r\n");
-        timer_sutimi = 0; // Inițializăm manual variabila
-    }
-    else if (motiv_reset & (1 << EXTRF)) {
-        // EXTRF = External Reset Flag (S-a apăsat butonul RESET)
-        // Aici variabila timer_sutimi are încă valoarea dinainte de reset!
+    // 2. Dacă a fost apăsat butonul RESET (EXTRF)
+    if (mcusr & (1 << EXTRF)) {
+        // Formatăm strict numărul: X.XX (urmat de Enter)
+        sprintf((char*)tx_buffer, "%lu.%02u\r\n", timer_sutimi / 100, timer_sutimi % 100);
         
-        unsigned long secunde = timer_sutimi / 100;
-        unsigned int fractiune = timer_sutimi % 100;
-        
-        sprintf(buffer, "\r\nTimp intre reset-uri: %lu.%02u secunde\r\n", secunde, fractiune);
-        UART_Print(buffer);
-        
-        timer_sutimi = 0; // Resetăm contorul pentru următoarea tură
-    }
-    else {
-        // Alte tipuri de reset (Brown-out, Watchdog), tratate ca pornire nouă
-        timer_sutimi = 0;
+        // Pornim transmisia
+        tx_index = 0;
+        UCSR0B |= (1 << UDRIE0);
     }
 
-    // 3. Pornim Timer-ul pentru a măsura URMĂTOAREA perioadă
+    // 3. Resetăm contorul pentru noua măsurătoare
+    // (Fie că e Power On, fie că e Reset, o luăm de la 0 acum)
+    timer_sutimi = 0;
+
+    // 4. Pornim sistemul
     Timer1_Init();
     __enable_interrupt();
 
     while(1) {
-        // Buclă infinită. Procesorul doar numără timpul în ISR.
-        // Când vei apăsa RESET, codul sare înapoi la începutul lui main()
-        // dar 'timer_sutimi' va fi păstrat.
+        // Procesorul doarme, totul e pe întreruperi
     }
 }
